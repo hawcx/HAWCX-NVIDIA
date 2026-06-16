@@ -1,0 +1,34 @@
+[workspace]
+members = [
+    "crates/ext-authz-core",
+    "crates/ext-authz-middleware",
+    "crates/ext-authz-demo",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/hawcx/hawcx_nvidia"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+base64 = "0.22"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
+axum = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+clap = { version = "4", features = ["derive"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+
+ext-authz-core = { path = "crates/ext-authz-core" }
+ext-authz-middleware = { path = "crates/ext-authz-middleware" }

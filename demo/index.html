@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ext-authz — per-action authorization at the egress edge</title>
+<style>
+  :root{
+    --bg:#fbfbf9; --surface:#ffffff; --surface-2:#f4f3ef;
+    --text:#1c1b19; --muted:#6c6a63; --faint:#9a978d;
+    --border:rgba(0,0,0,.12); --border-strong:rgba(0,0,0,.22);
+    --ok:#15803d; --ok-bg:#eafaef; --deny:#b4232a; --deny-bg:#fdeeee;
+    --accent:#2c5fe0; --accent-bg:#eaf0ff;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  [data-theme="dark"]{
+    --bg:#161513; --surface:#211f1c; --surface-2:#2a2824;
+    --text:#f1efe9; --muted:#a8a59c; --faint:#74716a;
+    --border:rgba(255,255,255,.13); --border-strong:rgba(255,255,255,.26);
+    --ok:#56d07f; --ok-bg:#142a1c; --deny:#f08a8a; --deny-bg:#2c1716;
+    --accent:#7aa2ff; --accent-bg:#1a2236;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    line-height:1.5;-webkit-font-smoothing:antialiased;padding:28px 22px}
+  .wrap{max-width:860px;margin:0 auto}
+  .head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}
+  h1{font-size:21px;font-weight:600;margin:0 0 3px}
+  .sub{font-size:13.5px;color:var(--muted);margin:0}
+  .toggle{flex:none;border:1px solid var(--border);background:var(--surface);color:var(--muted);
+    border-radius:999px;padding:7px 13px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .toggle:hover{border-color:var(--border-strong);color:var(--text)}
+  .pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+  .pill{border:1px solid var(--border);background:var(--surface);color:var(--muted);
+    border-radius:999px;padding:8px 15px;font-size:13.5px;cursor:pointer;font-family:inherit;transition:.15s}
+  .pill:hover{border-color:var(--border-strong);color:var(--text)}
+  .pill[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent);font-weight:500}
+  .rail{position:relative;display:flex;align-items:flex-start;justify-content:space-between;
+    gap:4px;margin:6px 0 8px;padding:20px 0 4px}
+  .node{flex:none;text-align:center;font-size:12.5px;color:var(--muted);background:var(--surface);
+    border:1px solid var(--border);border-radius:10px;padding:9px 11px;min-width:0}
+  .node small{display:block;font-size:10px;color:var(--faint);font-weight:400;margin-top:1px}
+  .node.star{color:var(--text);font-weight:600;border-color:var(--accent);background:var(--accent-bg)}
+  .node.star small{color:var(--accent)}
+  .arr{flex:none;color:var(--faint);font-size:13px;padding-top:12px}
+  .dot{position:absolute;top:2px;left:0;width:12px;height:12px;border-radius:50%;
+    background:var(--faint);transition:left .6s cubic-bezier(.4,.0,.2,1),background .25s;box-shadow:0 0 0 3px var(--bg)}
+  .legend{display:flex;flex-wrap:wrap;gap:18px;font-size:11.5px;color:var(--muted);margin:2px 0 20px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:1px;margin-right:5px}
+  .why{font-size:14px;color:var(--text);background:var(--surface-2);border-radius:10px;
+    padding:11px 14px;margin-bottom:16px}
+  .why b{font-weight:500;color:var(--muted);margin-right:8px;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{border:1px solid var(--border);border-radius:13px;padding:15px 17px;background:var(--surface)}
+  .card h3{font-size:12px;font-weight:500;color:var(--muted);margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em}
+  .step{display:flex;align-items:center;gap:9px;font-size:14px;padding:3px 0}
+  .step .m{font-size:15px;width:18px;text-align:center}
+  .verdict .big{font-size:27px;font-weight:600;letter-spacing:.02em;margin:2px 0 4px}
+  .verdict .code{font-family:var(--mono);font-size:13.5px}
+  .verdict .line{font-size:12.5px;color:var(--muted);margin-top:9px;display:flex;align-items:center;gap:6px}
+  .crh{margin-top:14px;font-family:var(--mono);font-size:12.5px;background:var(--surface-2);
+    border-radius:10px;padding:12px 14px;line-height:1.9}
+  .crh .lbl{color:var(--muted)}
+  .crh .bad{color:var(--deny)}
+  .crh .good{color:var(--ok)}
+  .audit-h{font-size:12px;color:var(--muted);margin:16px 0 6px}
+  .audit-h span{color:var(--faint)}
+  .audit{font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--muted);
+    background:var(--surface-2);border-radius:10px;padding:12px 14px;word-break:break-all}
+  .foot{font-size:11.5px;color:var(--faint);margin-top:18px;text-align:center}
+  @media(max-width:560px){.cols{grid-template-columns:1fr}.node small{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Per-action authorization at the egress edge</h1>
+      <p class="sub">OpenShell <code>ext-authz</code> middleware · six of the demo's eleven scenarios · every verdict below is real verifier output</p>
+    </div>
+    <button class="toggle" id="theme" aria-label="Toggle dark mode">dark</button>
+  </div>
+
+  <div class="pills" id="pills" role="group" aria-label="Scenario">
+    <button class="pill" data-scn="allow">Allow</button>
+    <button class="pill" data-scn="respawn">Agent respawn</button>
+    <button class="pill" data-scn="wrongagent">Wrong agent</button>
+    <button class="pill" data-scn="revoked">Agent revoked</button>
+    <button class="pill" data-scn="body">Body changed</button>
+    <button class="pill" data-scn="down">Verifier down</button>
+  </div>
+
+  <div class="rail" id="rail">
+    <div class="node edge" data-node="0">agent</div>
+    <div class="arr">→</div>
+    <div class="node ctx" data-node="1">L7 policy</div>
+    <div class="arr">→</div>
+    <div class="node ctx" data-node="2">Privacy Guard<small>mutate</small></div>
+    <div class="arr">→</div>
+    <div class="node star" data-node="3">ext-authz<small>authorize</small></div>
+    <div class="arr">→</div>
+    <div class="node ctx" data-node="4">credential<small>sign</small></div>
+    <div class="arr">→</div>
+    <div class="node edge" data-node="5">upstream</div>
+    <div class="dot" id="dot"></div>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--ok)"></i>allowed / passed</span>
+    <span><i style="background:var(--deny)"></i>denied / failed</span>
+    <span style="color:var(--faint)">order: mutate → authorize → sign</span>
+  </div>
+
+  <div class="why" id="why"></div>
+
+  <div class="cols">
+    <div class="card">
+      <h3>verifier cascade</h3>
+      <div id="cascade"></div>
+    </div>
+    <div class="card verdict" id="verdict"></div>
+  </div>
+
+  <div class="crh" id="crh"></div>
+
+  <div class="audit-h">audit event emitted <span>— digest only, no token, no body</span></div>
+  <div class="audit" id="audit"></div>
+
+  <p class="foot">crh_v1 binds the bytes that egress · verifier inline on the hot path, sub-ms/low-ms · fail-closed by default</p>
+</div>
+
+<script>
+(function(){
+  var steps=['signature','wire version','expiry','descriptor / crh','principal (agent)','scope','intent (crh)','single-use jti'];
+  var D={
+    allow:{why:'A single-use token bound to the durable agent, minted for exactly this request. The happy path.',reach:5,allow:true,code:'OK',status:'',lat:'1.11 ms',fail:-1,note:'forwarded to upstream · token stripped',crh:'ok',
+      audit:'{"decision":"allow","reason_code":"OK","canonical_request_hash":"362355be…315bd21a","agent_id":"agt-7f3a","sandbox_id":"sbx-run-1","verifier_latency_ms":1.11,"enforced":true,"degraded":false}'},
+    respawn:{why:'Same durable agent, fresh sandbox id (sbx-run-2) after a respawn. Bound to the agent, not the sandbox — still authorized.',reach:5,allow:true,code:'OK',status:'',lat:'0.63 ms',fail:-1,note:'forwarded to upstream · token stripped',crh:'ok',
+      audit:'{"decision":"allow","reason_code":"OK","canonical_request_hash":"362355be…315bd21a","agent_id":"agt-7f3a","sandbox_id":"sbx-run-2","verifier_latency_ms":0.63,"enforced":true,"degraded":false}'},
+    wrongagent:{why:'A token minted for one agent, presented while a different agent is acting.',reach:3,allow:false,code:'AGENT_MISMATCH',status:'403',lat:'0.50 ms',fail:4,note:'blocked · not forwarded',crh:'ok',
+      audit:'{"decision":"deny","reason_code":"AGENT_MISMATCH","canonical_request_hash":"362355be…315bd21a","agent_id":"agt-intruder","sandbox_id":"sbx-run-1","verifier_latency_ms":0.50,"enforced":true,"degraded":false}'},
+    revoked:{why:'The agent principal was revoked — denied across every sandbox it runs in, not just one.',reach:3,allow:false,code:'AGENT_REVOKED',status:'403',lat:'0.56 ms',fail:4,note:'blocked · not forwarded',crh:'ok',
+      audit:'{"decision":"deny","reason_code":"AGENT_REVOKED","canonical_request_hash":"362355be…315bd21a","agent_id":"agt-revoked","sandbox_id":"sbx-run-1","verifier_latency_ms":0.56,"enforced":true,"degraded":false}'},
+    body:{why:'Token minted for this request, then the body was altered before sending.',reach:3,allow:false,code:'INTENT_MISMATCH',status:'403',lat:'0.33 ms',fail:6,note:'blocked · not forwarded',crh:'diverge',
+      audit:'{"decision":"deny","reason_code":"INTENT_MISMATCH","canonical_request_hash":"934b208d…c2107508","agent_id":"agt-7f3a","sandbox_id":"sbx-run-1","verifier_latency_ms":0.33,"enforced":true,"degraded":false}'},
+    down:{why:'The verifier is unreachable. The secure default is to deny, not wave it through.',reach:3,allow:false,code:'VERIFIER_UNAVAILABLE',status:'503',lat:'0.26 ms',fail:-2,note:'fail-closed · not forwarded',crh:'na',
+      audit:'{"decision":"deny","reason_code":"VERIFIER_UNAVAILABLE","canonical_request_hash":"362355be…315bd21a","agent_id":"agt-7f3a","sandbox_id":"sbx-run-1","degraded":true,"enforced":true}'}
+  };
+  var rail=document.getElementById('rail'),dot=document.getElementById('dot');
+  var nodes=[].slice.call(rail.querySelectorAll('[data-node]'));
+  var pills=[].slice.call(document.querySelectorAll('.pill'));
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+  function moveDot(i,allow){
+    var n=nodes[i];
+    dot.style.left=(n.offsetLeft+n.offsetWidth/2-6)+'px';
+    dot.style.background=allow?css('--ok'):(D.cur&&D.cur.fail===-2?css('--faint'):css('--deny'));
+  }
+  function cascade(d){
+    var ok=css('--ok'),deny=css('--deny'),faint=css('--faint'),html='';
+    for(var i=0;i<steps.length;i++){
+      var m,col,tcol;
+      if(d.fail===-2){m='·';col=faint;tcol=faint;}
+      else if(d.fail===-1||i<d.fail){m='✓';col=ok;tcol='var(--text)';}
+      else if(i===d.fail){m='✕';col=deny;tcol=deny;}
+      else {m='·';col=faint;tcol=faint;}
+      html+='<div class="step" style="color:'+tcol+'"><span class="m" style="color:'+col+'">'+m+'</span>'+steps[i]+'</div>';
+    }
+    if(d.fail===-2) html='<div class="step" style="color:'+deny+'"><span class="m" style="color:'+deny+'">⚠</span>verifier unreachable</div>'+html;
+    document.getElementById('cascade').innerHTML=html;
+  }
+  function verdict(d){
+    var box=document.getElementById('verdict'),allow=d.allow;
+    var col=allow?'var(--ok)':'var(--deny)',bg=allow?'var(--ok-bg)':'var(--deny-bg)';
+    box.style.borderColor=col;box.style.background=bg;
+    var st=d.status?'<span class="line" style="color:'+col+'">HTTP '+d.status+'</span>':'';
+    box.innerHTML='<h3>verdict</h3>'+
+      '<div class="big" style="color:'+col+'">'+(allow?'ALLOW':'DENY')+'</div>'+
+      '<div class="code">'+d.code+'</div>'+st+
+      '<div class="line">→ '+d.note+'</div>'+
+      '<div class="line">verifier '+d.lat+'</div>';
+  }
+  function crh(d){
+    var el=document.getElementById('crh');
+    if(d.crh==='na'){el.style.display='none';return;}
+    el.style.display='block';
+    if(d.crh==='diverge'){
+      el.innerHTML='<span class="lbl">request crh&nbsp;&nbsp;&nbsp;&nbsp;</span> 934b208d…c2107508<br>'+
+        '<span class="lbl">token-bound</span> 362355be…315bd21a &nbsp;<span class="bad">≠&nbsp; bytes changed after the token was minted</span>';
+    } else {
+      el.innerHTML='<span class="lbl">request crh</span> 362355be…315bd21a &nbsp;<span class="good">=&nbsp; token-bound crh</span>';
+    }
+  }
+  function render(scn){
+    var d=D[scn];D.cur=d;
+    pills.forEach(function(p){p.setAttribute('aria-pressed',p.getAttribute('data-scn')===scn);});
+    document.getElementById('why').innerHTML='<b>why</b>'+d.why;
+    cascade(d);verdict(d);crh(d);
+    document.getElementById('audit').textContent=d.audit;
+    moveDot(d.reach,d.allow);
+  }
+  pills.forEach(function(p){p.addEventListener('click',function(){render(p.getAttribute('data-scn'));});});
+
+  var t=document.getElementById('theme');
+  t.addEventListener('click',function(){
+    var dark=document.documentElement.getAttribute('data-theme')==='dark';
+    document.documentElement.setAttribute('data-theme',dark?'light':'dark');
+    t.textContent=dark?'dark':'light';
+    if(D.cur) moveDot(D.cur.reach,D.cur.allow);
+  });
+  window.addEventListener('resize',function(){if(D.cur)moveDot(D.cur.reach,D.cur.allow);});
+  render('allow');
+})();
+</script>
+</body>
+</html>

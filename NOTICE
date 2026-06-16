@@ -1,0 +1,23 @@
+NOTICE
+======
+
+openshell-ext-authz — reference / demonstration code.
+
+This repository is a runnable REFERENCE implementation of an external per-action
+authorization egress middleware for OpenShell sandboxes, offered as an example
+alongside Privacy Guard for the egress-middleware RFC (NVIDIA/OpenShell#1733).
+It is licensed under Apache-2.0 (see LICENSE), matching OpenShell, so it can be
+contributed to the RFC's examples/ as-is.
+
+Scope — what this code is NOT:
+
+* The demo verifier validates a deliberately simple HMAC-over-JSON token. This is
+  NOT the real HAAP wire format; it exists only so the example is self-contained
+  and dependency-free.
+* Hawcx's production HAAP credential layer — designated-verifier Schnorr tokens,
+  per-call proof-of-possession, enrolled agent identity, and revocation — is a
+  SEPARATE, proprietary implementation and is NOT included in this repository.
+
+HAAP (Hawcx Agent Auth Protocol) is patent pending.
+
+Copyright (c) 2026 Hawcx, Inc.   ·   info@hawcx.com
