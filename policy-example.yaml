@@ -1,35 +1,44 @@
-# Example sandbox policy wiring the ext-authz middleware onto an endpoint rule.
+# Example sandbox policy wiring the ext-authz authorizer onto an endpoint rule.
 #
-# Shape follows the `middleware_configs` block proposed in NVIDIA/OpenShell#1694
-# (top-level `middleware_configs` map + a per-endpoint `middleware` list), extended
-# with the v1 egress-hook fields #1733 calls for: stage, enforcement mode, and
-# fail-closed behavior. This is illustrative — the canonical schema lands with
-# rfc/0005-sandbox-egress-middleware.
+# Illustrative only. The shape borrows the `middleware_configs` map + per-endpoint
+# `middleware` list from NVIDIA/OpenShell#1694 and the egress-hook ideas from RFC 0009
+# (supervisor middleware, tracked by #1733). The canonical schema is RFC 0009's
+# `network_middlewares` registration + policy-/endpoint-level `middleware: [...]` chains,
+# with the hook at `HttpRequest/pre_credentials`; this file predates that and is kept as a
+# readable approximation.
 
 version: 1
 
 middleware_configs:
-  # An external per-action authorizer (Hawcx HAAP verifier, or any guard service
-  # speaking the /v1/authorize contract in ext-authz-core::types).
+  # An external per-action authorizer (the Hawcx HAAP verifier, or any guard service
+  # speaking the request/verdict shape in ext-authz-core::types). In RFC 0009 terms this is
+  # an external middleware the supervisor calls over gRPC; the HTTP /v1/authorize here is an
+  # illustrative stand-in. `hawcx/` namespaces it (the `openshell/` namespace is reserved
+  # for built-ins like openshell/secrets and openshell/sigv4).
   haap_authz:
-    middleware: ext-authz
-    # v1 egress hook stage. Authorizers run pre-credential and never see the secret.
-    stage: pre-credential
+    middleware: hawcx/ext-authz
+    # Runs at the pre_credentials hook: after policy admits the request, before credential
+    # injection — so it never sees OpenShell-managed credentials.
+    stage: pre_credentials
     # Out-of-process verifier. Prefer a loopback unix socket or mTLS in production.
     verifier_url: http://127.0.0.1:18443/v1/authorize
     mode: enforce              # enforce | observe
-    fail: closed               # closed | open   (closed = deny if the verifier can't run)
+    fail: closed               # closed | open  (closed = deny if the verifier can't run; RFC 0009 on_error: fail_closed)
     timeout_ms: 100            # inline hot-path budget; sub-ms is typical
     token_header: x-hawcx-haap-token
     forward_headers: [x-request-id]
-    strip_token_header: true   # the per-action token is for the verifier, not the upstream API
+    # The per-action token is for the verifier, not the upstream API. NB: in RFC 0009 v1,
+    # removing a header is a supervisor capability, not a middleware one — see the README's
+    # open interface questions for the supervisor-owned-credential-placeholder model.
+    strip_token_header: true
     max_body_bytes: 1048576
 
-  # (For contrast) a post-credential transform, the #1694/#1638 sigv4 case. It needs
-  # the resolved credential, so it runs in the post-credential stage and is first-party.
+  # (For contrast) a post-credential transform: the signing case. In RFC 0009 this is the
+  # future, built-in-only `post_credentials` hook (openshell/sigv4); it needs the resolved
+  # credential, so it runs after the authorizer and is first-party.
   sigv4_bedrock:
-    middleware: sigv4
-    stage: post-credential
+    middleware: openshell/sigv4
+    stage: post_credentials
     signing_service: bedrock
 
 network_policies:
@@ -41,9 +50,9 @@ network_policies:
         protocol: rest
         enforcement: enforce
         access: full
-        # Ordered: content mutators (none here) run before the authorizer; the
-        # authorizer is the last pre-credential step. `required: true` makes the
-        # authorizer fail-closed for this destination specifically.
+        # Ordered: content rewriters (none here) run before the authorizer; the authorizer
+        # is the last pre-credential step. `required: true` makes it fail-closed for this
+        # destination specifically.
         middleware:
           - { ref: haap_authz, required: true }
 
@@ -56,5 +65,5 @@ network_policies:
         enforcement: enforce
         access: full
         middleware:
-          - { ref: haap_authz, required: true }   # authorize the action (pre-credential)
-          - { ref: sigv4_bedrock }                 # then sign with the credential (post-credential)
+          - { ref: haap_authz, required: true }   # authorize the action (pre_credentials)
+          - { ref: sigv4_bedrock }                 # then sign with the credential (post_credentials)

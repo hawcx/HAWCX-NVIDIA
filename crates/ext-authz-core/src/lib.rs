@@ -1,7 +1,7 @@
 //! ext-authz-core — the deployment-agnostic pieces of an external-authorization
 //! egress middleware for OpenShell (NVIDIA/OpenShell#1733):
 //!
-//! * [`hash`] — `crh_v1`, the canonical request hash: the single field that lets a verifier bind its decision to the bytes that egress, and that doubles as the privacy-preserving audit digest (#1733 "audit evidence without storing raw sensitive values").
+//! * [`hash`] — `crh_v1`, the canonical request hash: the field that lets a verifier bind its decision to the bytes that egress, and a privacy-preserving audit digest. RFC 0009 requires raw-value-free audit evidence but does not itself specify a request hash; `crh_v1` is the digest this example proposes to serve that.
 //! * [`types`] — the `AuthorizeRequest` / `AuthorizeResponse` wire contract between the in-proxy middleware and an out-of-process verifier ("guard service").
 //! * [`config`] — operator-facing middleware configuration (maps onto the `middleware_configs` policy block proposed in NVIDIA/OpenShell#1694).
 //!

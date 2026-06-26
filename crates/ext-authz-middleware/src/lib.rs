@@ -22,14 +22,15 @@
 //!
 //! ### Mapping to the proposed OpenShell interfaces
 //!
-//! NVIDIA/OpenShell#1694 sketches `L7Middleware::process_request(ctx, req, headers,
-//! client) -> MiddlewareAction{Forward|Passthrough}`. This crate keeps the same
-//! request-scoped, async, one-shot shape but adds the variant an authorizer (and
-//! Privacy Guard's `block`) needs: [`Decision::Deny`] with a structured verdict. In a
-//! #1694-shaped host, `Continue` maps to `Passthrough`/`Forward` (with the token
-//! header removed) and `Deny` is the missing enforcement variant; buffering the body
-//! from the stream to hash it mirrors what the sigv4 signed-body path (PR #1638)
-//! already does.
+//! RFC 0009 (supervisor middleware) specifies a first-class `allow`/`deny` decision (deny
+//! short-circuits the chain) over a gRPC `EvaluateHttpRequest`/`HttpRequestResult` contract.
+//! This crate's [`Decision::Continue`]/[`Decision::Deny`] map straight onto `allow`/`deny`;
+//! the demo's HTTP/JSON transport is a dependency-free stand-in for that gRPC contract.
+//! Buffering the bounded body to hash it mirrors what the supervisor already does for body
+//! inspection and for the sigv4 signed-body path (cf. PR #1638). Note RFC 0009 v1 middleware
+//! may only *append* safe headers, not remove them — so stripping the per-action token
+//! (below) is a supervisor-owned concern, raised as an open interface question in the README,
+//! not a capability the middleware has in v1.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -78,8 +79,8 @@ pub struct EgressRequest<'a> {
     pub body: &'a [u8],
 }
 
-/// A structured denial — the enforcement variant the merged #1733/#1694 action type
-/// needs (`MiddlewareAction` in #1694 is `Forward`/`Passthrough` only).
+/// A structured denial. Maps onto RFC 0009's `deny` decision (which short-circuits the
+/// chain); `http_status` is a hint for the response the supervisor synthesizes.
 #[derive(Debug, Clone, Serialize)]
 pub struct DenyVerdict {
     /// Suggested status for the synthesized response to the sandbox:
@@ -95,10 +96,11 @@ pub struct DenyVerdict {
 /// The middleware's decision for one request.
 #[derive(Debug, Clone)]
 pub enum Decision {
-    /// Let the request continue to the next stage (credential injection), after
-    /// removing `strip_headers` (lowercase names) from it. The host MUST remove *every*
-    /// instance of each name, matched case-insensitively, before the request egresses —
-    /// a surviving duplicate would leak the per-action credential upstream.
+    /// Let the request continue to the next stage (credential injection), after the host
+    /// removes `strip_headers` (lowercase names). The host MUST remove *every* instance of
+    /// each name, case-insensitively, before egress — a surviving duplicate would leak the
+    /// per-action credential upstream. (In RFC 0009 v1, header removal is a supervisor
+    /// capability, not a middleware one — see the README's open interface questions.)
     Continue { strip_headers: Vec<String> },
     /// Block the request; the proxy should synthesize an error response to the
     /// sandbox and MUST NOT forward upstream.
@@ -144,7 +146,7 @@ pub struct AuditEvent {
 }
 
 /// The request-scoped egress middleware hook this example is written against — the
-/// seam to adapt to the final `rfc/0005-sandbox-egress-middleware` interface.
+/// seam to adapt to the final `rfc/0009-supervisor-middleware` interface.
 pub trait EgressMiddleware: Send + Sync {
     fn name(&self) -> &str;
     fn on_request<'a>(

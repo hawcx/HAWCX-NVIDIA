@@ -1,5 +1,9 @@
 //! The middleware ↔ verifier wire contract.
 //!
+//! **Illustrative transport.** This HTTP/JSON round trip is a dependency-free stand-in for
+//! RFC 0009's gRPC `EvaluateHttpRequest` / `HttpRequestResult`. The field *shape* below is
+//! what transfers to a real integration, not the HTTP wire format.
+//!
 //! One round trip per outbound request:
 //!
 //! ```text
