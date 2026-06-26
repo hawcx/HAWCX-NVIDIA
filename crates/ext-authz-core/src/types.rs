@@ -56,7 +56,12 @@ pub struct RequestDescriptor {
     pub canonical_request_hash: String,
 }
 
-/// Who is acting — the proxy-attested execution context.
+/// Who is acting — the proxy execution context.
+///
+/// NB: this is the context shape this example *proposes*; RFC 0009 v1 surfaces only an
+/// `originating_process` (per-connection, not for per-request attribution). The fields below
+/// are illustrative, and `agent_id` is assumed-attested here — see the README's open
+/// interface questions.
 ///
 /// The authorization SUBJECT is the durable `agent_id` — it survives sandbox respawn. The
 /// `sandbox_id` is the runtime/workload the action executes in: attested context and an

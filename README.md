@@ -40,7 +40,7 @@ flowchart TB
   A["agent request (+ per-action token)"] --> NP
   subgraph CORE["Supervisor proxy — core OpenShell (places hook · enforces · owns upstream call)"]
     NP["network / L7 policy"] --> HOOK["HttpRequest/pre_credentials (ordered middleware chain)"]
-    HOOK -->|allow| SIGN["post_credentials signing (built-in openshell/sigv4)"]
+    HOOK -->|allow| SIGN["post_credentials signing — built-in openshell/sigv4 (future; not v1)"]
     HOOK -->|deny| DENY["request blocked"]
     SIGN --> UP["upstream API"]
   end
@@ -242,9 +242,10 @@ store, and the transport are all reference simplifications).
 This crate is written against a small `EgressMiddleware::on_request(ctx, req)` seam (see
 `ext-authz-middleware/src/lib.rs`). When `rfc/0009-supervisor-middleware` pins its concrete
 gRPC contract, the adapter is mechanical: express the demo's HTTP `AuthorizeRequest` /
-`AuthorizeResponse` as the gRPC `EvaluateHttpRequest` / `HttpRequestResult`, map
-`Decision::Continue` to `allow` and `Decision::Deny` to `deny`, and route `AuditEvent` to the
-OCSF audit sink. The crh canonicalization and the verifier's checks are unaffected. Two
+`AuthorizeResponse` as the gRPC `EvaluateHttpRequest` / `HttpRequestResult`, map the
+middleware's internal `Continue`/`Deny` decision to the wire `allow`/`deny` (the verdict the
+verifier already returns), and route `AuditEvent` to the OCSF audit sink. The crh
+canonicalization and the verifier's checks are unaffected. Two
 pieces do **not** map onto v1 as-is and are raised as open questions below.
 
 ## Open interface questions (for the RFC)

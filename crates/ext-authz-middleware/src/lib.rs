@@ -48,8 +48,9 @@ use serde::Serialize;
 /// Proxy-attested execution context for one request.
 #[derive(Debug, Clone, Copy)]
 pub struct RequestContext<'a> {
-    /// The durable agent principal the gateway attests — the authorization subject.
-    /// Survives sandbox respawn; this is what the verdict binds to.
+    /// The durable agent principal — the authorization subject the verdict binds to.
+    /// (Proposed context field; RFC 0009 v1 surfaces only `originating_process`. Here it is
+    /// assumed-attested — see the README's open interface questions.)
     pub agent_id: &'a str,
     /// The human the agent acts for (OIDC subject), when applicable.
     pub on_behalf_of: Option<&'a str>,
