@@ -1,15 +1,17 @@
 # OpenShell ext-authz middleware (reference implementation)
 
-A small, runnable **external per-action authorization** example for OpenShell's supervisor
-egress hook — offered to contribute alongside Privacy Guard for the supervisor-middleware
-RFC ([RFC 0009](https://github.com/NVIDIA/OpenShell/pull/1738), tracked by
-[NVIDIA/OpenShell#1733](https://github.com/NVIDIA/OpenShell/issues/1733)).
+A small, runnable **external per-action authorization** middleware for OpenShell's supervisor
+egress hook (RFC 0009, tracked by [NVIDIA/OpenShell#1733](https://github.com/NVIDIA/OpenShell/issues/1733)).
+It binds each outbound agent action to an allow/deny decision over the *exact bytes* of the
+request: for every request it asks an out-of-process verifier ("guard service") "is *this*
+action allowed?" and returns a verdict the supervisor enforces before the request leaves the
+sandbox. Change the request after it's authorized and the call is dead at the edge.
 
-It is a *second, independent* consumer of the same `HttpRequest/pre_credentials` hook
-Privacy Guard uses: for each outbound request it asks an out-of-process verifier ("guard
-service") "is *this* action allowed?" and returns an **allow/deny** that the supervisor
-enforces before the request leaves the sandbox. Privacy Guard *rewrites* request content;
-this *decides* allow/deny and changes nothing — same hook contract, opposite jobs.
+It's a *second, independent* consumer of the `HttpRequest/pre_credentials` hook — an
+authorizer, offered partly to keep that interface honest about carrying more than one kind of
+middleware. (Privacy Guard, the redaction middleware that motivated the hook, is a different
+job on the same contract: it *rewrites* request content where this *decides* allow/deny. More
+on that in [Where each piece lives](#where-each-piece-lives) below.)
 
 > **Status:** reference / illustrative. The verifier validates a deliberately simple demo
 > token (HMAC over JSON claims) — *not* the real HAAP wire format — and the
